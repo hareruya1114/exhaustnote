@@ -1,0 +1,86 @@
+// ExhaustNote — data model
+// メーカー → 車種 → マフラー のドリルダウン構成。
+// マフラーは「1製品 = 1音源(soundUrl)」。回転数区間分割・比較・音の特徴スコアは持たない。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// バイクメーカー（例: Kawasaki）
+model Manufacturer {
+  id        String      @id @default(cuid())
+  slug      String      @unique // 例: kawasaki
+  name      String // 例: Kawasaki
+  order     Int         @default(0)
+  bikes     BikeModel[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+/// 車種（例: Ninja 400）
+model BikeModel {
+  id             String           @id @default(cuid())
+  slug           String // 例: ninja-400
+  name           String // 例: Ninja 400
+  order          Int              @default(0)
+  manufacturerId String
+  manufacturer   Manufacturer     @relation(fields: [manufacturerId], references: [id], onDelete: Cascade)
+  mufflers       MufflerProduct[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([manufacturerId, slug])
+}
+
+/// マフラー製品（例: ヨシムラ Slip-On R-77S）。1製品につき音源は1本。
+model MufflerProduct {
+  id           String          @id @default(cuid())
+  slug         String // 例: yoshimura-r77s
+  name         String // 例: Slip-On R-77S サイクロン
+  brandName    String // 例: ヨシムラ
+  productType  String          @default("スリップオン") // スリップオン / フルエキゾースト / 純正 など
+  material     String? // 例: チタン / ステンレス
+  priceJpy     Int? // 参考価格（税込）
+  jmcaApproved Boolean         @default(false) // 車検適合(JMCA認証)の目安
+  description  String? // 補足説明（任意）
+  soundUrl     String? // 音源URL（S3キー or 絶対URL）。1製品1本。
+  soundCaption String? // 音源キャプション（例: アイドリング〜空ぶかし）
+  order        Int             @default(0)
+  bikeModelId  String
+  bikeModel    BikeModel       @relation(fields: [bikeModelId], references: [id], onDelete: Cascade)
+  affiliateLinks AffiliateLink[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([bikeModelId, slug])
+}
+
+enum AffiliateVendor {
+  AMAZON
+  RAKUTEN
+  WEBIKE
+}
+
+/// アフィリエイトリンク。isPrimary=true の1本をメインCTAに使用。
+model AffiliateLink {
+  id        String          @id @default(cuid())
+  vendor    AffiliateVendor
+  url       String
+  isPrimary Boolean         @default(false)
+  productId String
+  product   MufflerProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now())
+}
+
+/// 管理者（1名運用想定）
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
